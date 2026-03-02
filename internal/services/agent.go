@@ -37,13 +37,13 @@ type AgentChatRequest struct {
 	MaxRounds        int                 `json:"max_rounds"`
 	CurrentRound     int                 `json:"current_round"`
 	FollowupCount    int                 `json:"followup_count"`
-	CurrentQuestion  *string             `json:"current_question"`  // nil for start
-	Answer           *string             `json:"answer"`            // nil for start
+	CurrentQuestion  *string             `json:"current_question"` // nil for start
+	Answer           *string             `json:"answer"`           // nil for start
 	InterviewHistory []AgentHistoryEntry `json:"interview_history"`
 }
 
 type AgentChatResponse struct {
-	Question         *string  `json:"question"`         // next question (start or next round)
+	Question         *string  `json:"question"` // next question (start or next round)
 	EvaluationScore  *float64 `json:"evaluation_score"`
 	EvaluationDetail *string  `json:"evaluation_detail"`
 	Finished         bool     `json:"finished"`
