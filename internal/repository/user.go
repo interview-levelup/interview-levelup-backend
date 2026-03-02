@@ -38,3 +38,8 @@ func (r *UserRepository) FindByID(id string) (*models.User, error) {
 	}
 	return &u, nil
 }
+
+func (r *UserRepository) UpdatePasswordHash(id, hash string) error {
+	_, err := r.db.Exec(`UPDATE users SET password_hash = $1 WHERE id = $2`, hash, id)
+	return err
+}

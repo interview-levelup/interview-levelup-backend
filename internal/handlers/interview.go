@@ -53,6 +53,16 @@ func (h *InterviewHandler) Start(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"interview": iv, "current_question": round})
 }
 
+func (h *InterviewHandler) End(c *gin.Context) {
+	interviewID := c.Param("id")
+	iv, err := h.ivSvc.EndInterview(interviewID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"interview": iv})
+}
+
 func (h *InterviewHandler) SubmitAnswer(c *gin.Context) {
 	interviewID := c.Param("id")
 	var req submitAnswerRequest
@@ -60,7 +70,7 @@ func (h *InterviewHandler) SubmitAnswer(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	iv, nextRound, err := h.ivSvc.SubmitAnswer(interviewID, req.Answer)
+	iv, answeredRound, nextRound, err := h.ivSvc.SubmitAnswer(interviewID, req.Answer)
 	if err != nil {
 		log.Printf("[SubmitAnswer] interview=%s error=%v", interviewID, err)
 		if errors.Is(err, services.ErrAlreadyFinished) {
@@ -70,7 +80,7 @@ func (h *InterviewHandler) SubmitAnswer(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	resp := gin.H{"interview": iv}
+	resp := gin.H{"interview": iv, "answered_round": answeredRound}
 	if iv.Status == "finished" {
 		resp["finished"] = true
 		resp["final_report"] = iv.FinalReport

@@ -35,6 +35,13 @@ func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handle
 			auth.POST("/login", authH.Login)
 		}
 
+		// Protected auth routes (require JWT)
+		authProtected := v1.Group("/auth")
+		authProtected.Use(middleware.JWT(authSvc))
+		{
+			authProtected.PUT("/password", authH.ChangePassword)
+		}
+
 		interviews := v1.Group("/interviews")
 		interviews.Use(middleware.JWT(authSvc))
 		{
@@ -42,6 +49,7 @@ func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handle
 			interviews.GET("", ivH.List)
 			interviews.GET("/:id", ivH.Get)
 			interviews.POST("/:id/answer", ivH.SubmitAnswer)
+			interviews.POST("/:id/end", ivH.End)
 		}
 	}
 

@@ -56,6 +56,21 @@ func (s *AuthService) Login(email, password string) (string, *models.User, error
 	return token, u, nil
 }
 
+func (s *AuthService) ChangePassword(userID, currentPassword, newPassword string) error {
+	u, err := s.userRepo.FindByID(userID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(currentPassword)); err != nil {
+		return errors.New("current password is incorrect")
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.userRepo.UpdatePasswordHash(userID, string(hash))
+}
+
 func (s *AuthService) ValidateToken(tokenStr string) (string, error) {
 	t, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {

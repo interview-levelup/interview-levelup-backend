@@ -16,9 +16,9 @@ func NewInterviewRepository(db *sqlx.DB) *InterviewRepository {
 func (r *InterviewRepository) Create(iv *models.Interview) error {
 	const q = `
 		INSERT INTO interviews
-			(id, user_id, thread_id, role, level, style, max_rounds, status, created_at, updated_at)
+			(id, user_id, role, level, style, max_rounds, status, created_at, updated_at)
 		VALUES
-			(:id, :user_id, :thread_id, :role, :level, :style, :max_rounds, :status, :created_at, :updated_at)`
+			(:id, :user_id, :role, :level, :style, :max_rounds, :status, :created_at, :updated_at)`
 	_, err := r.db.NamedExec(q, iv)
 	return err
 }

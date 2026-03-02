@@ -47,6 +47,7 @@ type AgentChatResponse struct {
 	EvaluationScore  *float64 `json:"evaluation_score"`
 	EvaluationDetail *string  `json:"evaluation_detail"`
 	Finished         bool     `json:"finished"`
+	Aborted          bool     `json:"aborted"`
 	IsFollowup       bool     `json:"is_followup"`
 	CurrentRound     int      `json:"current_round"`
 	FollowupCount    int      `json:"followup_count"`

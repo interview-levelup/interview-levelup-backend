@@ -5,7 +5,6 @@ import "time"
 type Interview struct {
 	ID          string    `db:"id"           json:"id"`
 	UserID      string    `db:"user_id"      json:"user_id"`
-	ThreadID    string    `db:"thread_id"    json:"thread_id"`
 	Role        string    `db:"role"         json:"role"`
 	Level       string    `db:"level"        json:"level"`
 	Style       string    `db:"style"        json:"style"`

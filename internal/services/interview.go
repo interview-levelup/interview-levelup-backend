@@ -15,6 +15,11 @@ import (
 // If the agent's JSON parser failed, EvaluationDetail may itself be a raw
 // JSON string like {"score":45,"details":"..."}. We extract the fields here
 // so the DB and API always surface clean typed data.
+// isTerminalStatus returns true when an interview can no longer accept answers.
+func isTerminalStatus(s string) bool {
+	return s == "finished" || s == "aborted" || s == "ended"
+}
+
 func sanitizeEval(score *float64, detail *string) (*float64, *string) {
 	if detail == nil {
 		return score, detail
@@ -26,14 +31,21 @@ func sanitizeEval(score *float64, detail *string) (*float64, *string) {
 	var obj struct {
 		Score   *float64 `json:"score"`
 		Details *string  `json:"details"`
+		Detail  *string  `json:"detail"` // fallback key some LLMs use
 	}
 	if err := json.Unmarshal([]byte(trimmed), &obj); err != nil {
 		return score, detail
 	}
-	if obj.Details != nil {
-		detail = obj.Details
+	// Prefer "details", fall back to "detail"
+	cleanDetail := obj.Details
+	if cleanDetail == nil {
+		cleanDetail = obj.Detail
 	}
-	if score == nil && obj.Score != nil {
+	if cleanDetail != nil {
+		detail = cleanDetail
+	}
+	// Always take score from JSON when present (overrides separate field if set)
+	if obj.Score != nil {
 		score = obj.Score
 	}
 	return score, detail
@@ -63,7 +75,6 @@ func (s *InterviewService) StartInterview(userID, role, level, style string, max
 	iv := &models.Interview{
 		ID:        uuid.NewString(),
 		UserID:    userID,
-		ThreadID:  "",
 		Role:      role,
 		Level:     level,
 		Style:     style,
@@ -89,28 +100,28 @@ func (s *InterviewService) StartInterview(userID, role, level, style string, max
 	return iv, rnd, nil
 }
 
-func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Interview, *models.InterviewRound, error) {
+func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Interview, *models.InterviewRound, *models.InterviewRound, error) {
 	iv, err := s.repo.FindByID(interviewID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	if iv.Status == "finished" {
-		return nil, nil, ErrAlreadyFinished
+	if isTerminalStatus(iv.Status) {
+		return nil, nil, nil, ErrAlreadyFinished
 	}
 
 	// Fetch all rounds so we can reconstruct state for the stateless agent.
 	allRounds, err := s.repo.FindRoundsByInterviewID(interviewID)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	if len(allRounds) == 0 {
-		return nil, nil, fmt.Errorf("no rounds found for interview %s", interviewID)
+		return nil, nil, nil, fmt.Errorf("no rounds found for interview %s", interviewID)
 	}
 
 	// Latest round = the current unanswered question.
 	latest := allRounds[len(allRounds)-1]
 	if latest.Answer != nil {
-		return nil, nil, fmt.Errorf("latest round %s already has an answer — interview state may be inconsistent", latest.ID)
+		return nil, nil, nil, fmt.Errorf("latest round %s already has an answer — interview state may be inconsistent", latest.ID)
 	}
 
 	// Build history from all *previously answered* rounds (everything except latest).
@@ -151,7 +162,7 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		InterviewHistory: history,
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	now := time.Now().UTC()
@@ -164,16 +175,20 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 	latest.Score = cleanScore
 	latest.EvaluationDetail = cleanDetail
 	if err := s.repo.UpdateRound(&latest); err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	var nextRound *models.InterviewRound
 	if agentResp.Finished {
-		iv.Status = "finished"
+		if agentResp.Aborted {
+			iv.Status = "aborted"
+		} else {
+			iv.Status = "finished"
+		}
 		iv.FinalReport = agentResp.Report
 		iv.UpdatedAt = now
 		if err := s.repo.Update(iv); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	} else if agentResp.Question != nil {
 		nextRound = &models.InterviewRound{
@@ -185,14 +200,30 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 			CreatedAt:   now,
 		}
 		if err := s.repo.CreateRound(nextRound); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		iv.UpdatedAt = now
 		if err := s.repo.Update(iv); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
-	return iv, nextRound, nil
+	return iv, &latest, nextRound, nil
+}
+
+func (s *InterviewService) EndInterview(interviewID string) (*models.Interview, error) {
+	iv, err := s.repo.FindByID(interviewID)
+	if err != nil {
+		return nil, err
+	}
+	if isTerminalStatus(iv.Status) {
+		return iv, nil // idempotent
+	}
+	iv.Status = "ended"
+	iv.UpdatedAt = time.Now().UTC()
+	if err := s.repo.Update(iv); err != nil {
+		return nil, err
+	}
+	return iv, nil
 }
 
 func (s *InterviewService) GetInterview(interviewID, userID string) (*models.Interview, []models.InterviewRound, error) {
