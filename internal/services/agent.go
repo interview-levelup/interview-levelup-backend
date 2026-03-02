@@ -21,17 +21,6 @@ func NewAgentClient(baseURL string) *AgentClient {
 	}
 }
 
-type AgentStartRequest struct {
-	Role      string `json:"role"`
-	Level     string `json:"level"`
-	Style     string `json:"style"`
-	MaxRounds int    `json:"max_rounds"`
-}
-
-type AgentStartResponse struct {
-	Question string `json:"question"`
-}
-
 // AgentHistoryEntry mirrors a previously answered round stored in the backend DB.
 type AgentHistoryEntry struct {
 	Round    int      `json:"round"`
@@ -41,40 +30,32 @@ type AgentHistoryEntry struct {
 	Type     string   `json:"type,omitempty"` // "followup" if this was a follow-up
 }
 
-type AgentAnswerRequest struct {
+type AgentChatRequest struct {
 	Role             string              `json:"role"`
 	Level            string              `json:"level"`
 	Style            string              `json:"style"`
 	MaxRounds        int                 `json:"max_rounds"`
 	CurrentRound     int                 `json:"current_round"`
 	FollowupCount    int                 `json:"followup_count"`
-	CurrentQuestion  string              `json:"current_question"`
-	Answer           string              `json:"answer"`
+	CurrentQuestion  *string             `json:"current_question"`  // nil for start
+	Answer           *string             `json:"answer"`            // nil for start
 	InterviewHistory []AgentHistoryEntry `json:"interview_history"`
 }
 
-type AgentAnswerResponse struct {
+type AgentChatResponse struct {
+	Question         *string  `json:"question"`         // next question (start or next round)
 	EvaluationScore  *float64 `json:"evaluation_score"`
 	EvaluationDetail *string  `json:"evaluation_detail"`
 	Finished         bool     `json:"finished"`
-	NextQuestion     *string  `json:"next_question"`
 	IsFollowup       bool     `json:"is_followup"`
 	CurrentRound     int      `json:"current_round"`
 	FollowupCount    int      `json:"followup_count"`
 	Report           *string  `json:"report"`
 }
 
-func (c *AgentClient) Start(req AgentStartRequest) (*AgentStartResponse, error) {
-	var resp AgentStartResponse
-	if err := c.post("/start", req, &resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
-
-func (c *AgentClient) Answer(req AgentAnswerRequest) (*AgentAnswerResponse, error) {
-	var resp AgentAnswerResponse
-	if err := c.post("/answer", req, &resp); err != nil {
+func (c *AgentClient) Chat(req AgentChatRequest) (*AgentChatResponse, error) {
+	var resp AgentChatResponse
+	if err := c.post("/chat", req, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

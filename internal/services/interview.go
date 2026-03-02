@@ -49,11 +49,12 @@ func NewInterviewService(repo *repository.InterviewRepository, agent *AgentClien
 }
 
 func (s *InterviewService) StartInterview(userID, role, level, style string, maxRounds int) (*models.Interview, *models.InterviewRound, error) {
-	agentResp, err := s.agent.Start(AgentStartRequest{
-		Role:      role,
-		Level:     level,
-		Style:     style,
-		MaxRounds: maxRounds,
+	agentResp, err := s.agent.Chat(AgentChatRequest{
+		Role:             role,
+		Level:            level,
+		Style:            style,
+		MaxRounds:        maxRounds,
+		InterviewHistory: make([]AgentHistoryEntry, 0),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -78,7 +79,7 @@ func (s *InterviewService) StartInterview(userID, role, level, style string, max
 		ID:          uuid.NewString(),
 		InterviewID: iv.ID,
 		RoundNum:    0,
-		Question:    agentResp.Question,
+		Question:    *agentResp.Question,
 		IsFollowup:  false,
 		CreatedAt:   now,
 	}
@@ -138,15 +139,15 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		}
 	}
 
-	agentResp, err := s.agent.Answer(AgentAnswerRequest{
+	agentResp, err := s.agent.Chat(AgentChatRequest{
 		Role:             iv.Role,
 		Level:            iv.Level,
 		Style:            iv.Style,
 		MaxRounds:        iv.MaxRounds,
 		CurrentRound:     latest.RoundNum,
 		FollowupCount:    followupCount,
-		CurrentQuestion:  latest.Question,
-		Answer:           answer,
+		CurrentQuestion:  &latest.Question,
+		Answer:           &answer,
 		InterviewHistory: history,
 	})
 	if err != nil {
@@ -174,12 +175,12 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		if err := s.repo.Update(iv); err != nil {
 			return nil, nil, err
 		}
-	} else if agentResp.NextQuestion != nil {
+	} else if agentResp.Question != nil {
 		nextRound = &models.InterviewRound{
 			ID:          uuid.NewString(),
 			InterviewID: iv.ID,
 			RoundNum:    agentResp.CurrentRound,
-			Question:    *agentResp.NextQuestion,
+			Question:    *agentResp.Question,
 			IsFollowup:  agentResp.IsFollowup,
 			CreatedAt:   now,
 		}
