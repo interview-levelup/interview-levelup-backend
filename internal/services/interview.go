@@ -136,6 +136,8 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		}
 		if r.IsFollowup {
 			entry.Type = "followup"
+		} else if r.IsSub {
+			entry.Type = "sub"
 		}
 		history = append(history, entry)
 	}
@@ -174,6 +176,7 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 	latest.Answer = &answer
 	latest.Score = cleanScore
 	latest.EvaluationDetail = cleanDetail
+	latest.AnsweredAt = &now
 	if err := s.repo.UpdateRound(&latest); err != nil {
 		return nil, nil, nil, err
 	}
@@ -197,6 +200,7 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 			RoundNum:    agentResp.CurrentRound,
 			Question:    *agentResp.Question,
 			IsFollowup:  agentResp.IsFollowup,
+			IsSub:       agentResp.IsSub,
 			CreatedAt:   now,
 		}
 		if err := s.repo.CreateRound(nextRound); err != nil {

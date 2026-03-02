@@ -55,9 +55,9 @@ func (r *InterviewRepository) FindByUserID(userID string) ([]models.Interview, e
 func (r *InterviewRepository) CreateRound(rnd *models.InterviewRound) error {
 	const q = `
 		INSERT INTO interview_rounds
-			(id, interview_id, round_num, question, answer, score, evaluation_detail, is_followup, created_at)
+			(id, interview_id, round_num, question, answer, score, evaluation_detail, is_followup, is_sub, created_at)
 		VALUES
-			(:id, :interview_id, :round_num, :question, :answer, :score, :evaluation_detail, :is_followup, :created_at)`
+			(:id, :interview_id, :round_num, :question, :answer, :score, :evaluation_detail, :is_followup, :is_sub, :created_at)`
 	_, err := r.db.NamedExec(q, rnd)
 	return err
 }
@@ -67,7 +67,8 @@ func (r *InterviewRepository) UpdateRound(rnd *models.InterviewRound) error {
 		UPDATE interview_rounds SET
 			answer            = :answer,
 			score             = :score,
-			evaluation_detail = :evaluation_detail
+			evaluation_detail = :evaluation_detail,
+			answered_at       = :answered_at
 		WHERE id = :id`
 	_, err := r.db.NamedExec(q, rnd)
 	return err

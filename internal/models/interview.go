@@ -16,13 +16,15 @@ type Interview struct {
 }
 
 type InterviewRound struct {
-	ID               string    `db:"id"                json:"id"`
-	InterviewID      string    `db:"interview_id"      json:"interview_id"`
-	RoundNum         int       `db:"round_num"         json:"round_num"`
-	Question         string    `db:"question"          json:"question"`
-	Answer           *string   `db:"answer"            json:"answer,omitempty"`
-	Score            *float64  `db:"score"             json:"score,omitempty"`
-	EvaluationDetail *string   `db:"evaluation_detail" json:"evaluation_detail,omitempty"`
-	IsFollowup       bool      `db:"is_followup"       json:"is_followup"`
-	CreatedAt        time.Time `db:"created_at"        json:"created_at"`
+	ID               string     `db:"id"                json:"id"`
+	InterviewID      string     `db:"interview_id"      json:"interview_id"`
+	RoundNum         int        `db:"round_num"         json:"round_num"`
+	Question         string     `db:"question"          json:"question"`
+	Answer           *string    `db:"answer"            json:"answer,omitempty"`
+	Score            *float64   `db:"score"             json:"score,omitempty"`
+	EvaluationDetail *string    `db:"evaluation_detail" json:"evaluation_detail,omitempty"`
+	IsFollowup       bool       `db:"is_followup"       json:"is_followup"`
+	IsSub            bool       `db:"is_sub"             json:"is_sub"`
+	CreatedAt        time.Time  `db:"created_at"        json:"created_at"`
+	AnsweredAt       *time.Time `db:"answered_at"       json:"answered_at,omitempty"`
 }

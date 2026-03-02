@@ -13,12 +13,11 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS interviews (
     id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id      UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    thread_id    TEXT NOT NULL,
     role         TEXT NOT NULL,
     level        TEXT NOT NULL DEFAULT 'junior',
     style        TEXT NOT NULL DEFAULT 'standard',
     max_rounds   INTEGER NOT NULL DEFAULT 5,
-    status       TEXT NOT NULL DEFAULT 'ongoing',  -- ongoing | finished
+    status       TEXT NOT NULL DEFAULT 'ongoing',  -- ongoing | finished | aborted | ended
     final_report TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -35,7 +34,9 @@ CREATE TABLE IF NOT EXISTS interview_rounds (
     score             FLOAT,
     evaluation_detail TEXT,
     is_followup       BOOLEAN NOT NULL DEFAULT FALSE,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    is_sub            BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    answered_at       TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS idx_interview_rounds_interview_id ON interview_rounds(interview_id);

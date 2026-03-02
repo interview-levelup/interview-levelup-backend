@@ -48,6 +48,7 @@ type AgentChatResponse struct {
 	EvaluationDetail *string  `json:"evaluation_detail"`
 	Finished         bool     `json:"finished"`
 	Aborted          bool     `json:"aborted"`
+	IsSub            bool     `json:"is_sub"`
 	IsFollowup       bool     `json:"is_followup"`
 	CurrentRound     int      `json:"current_round"`
 	FollowupCount    int      `json:"followup_count"`
