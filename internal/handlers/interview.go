@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/fan/interview-levelup-backend/internal/middleware"
@@ -61,6 +62,11 @@ func (h *InterviewHandler) SubmitAnswer(c *gin.Context) {
 	}
 	iv, nextRound, err := h.ivSvc.SubmitAnswer(interviewID, req.Answer)
 	if err != nil {
+		log.Printf("[SubmitAnswer] interview=%s error=%v", interviewID, err)
+		if errors.Is(err, services.ErrAlreadyFinished) {
+			c.JSON(http.StatusConflict, gin.H{"error": "interview already finished"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

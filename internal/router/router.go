@@ -2,15 +2,26 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/fan/interview-levelup-backend/internal/handlers"
 	"github.com/fan/interview-levelup-backend/internal/middleware"
 	"github.com/fan/interview-levelup-backend/internal/services"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
 func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handlers.InterviewHandler) *gin.Engine {
 	r := gin.Default()
+
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

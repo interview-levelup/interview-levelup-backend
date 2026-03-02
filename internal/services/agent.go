@@ -29,38 +29,39 @@ type AgentStartRequest struct {
 }
 
 type AgentStartResponse struct {
-	ThreadID string            `json:"thread_id"`
-	Question *string           `json:"question"`
-	State    AgentStatePayload `json:"state"`
+	Question string `json:"question"`
+}
+
+// AgentHistoryEntry mirrors a previously answered round stored in the backend DB.
+type AgentHistoryEntry struct {
+	Round    int      `json:"round"`
+	Question string   `json:"question"`
+	Answer   *string  `json:"answer,omitempty"`
+	Score    *float64 `json:"score,omitempty"`
+	Type     string   `json:"type,omitempty"` // "followup" if this was a follow-up
 }
 
 type AgentAnswerRequest struct {
-	ThreadID string `json:"thread_id"`
-	Answer   string `json:"answer"`
+	Role             string              `json:"role"`
+	Level            string              `json:"level"`
+	Style            string              `json:"style"`
+	MaxRounds        int                 `json:"max_rounds"`
+	CurrentRound     int                 `json:"current_round"`
+	FollowupCount    int                 `json:"followup_count"`
+	CurrentQuestion  string              `json:"current_question"`
+	Answer           string              `json:"answer"`
+	InterviewHistory []AgentHistoryEntry `json:"interview_history"`
 }
 
 type AgentAnswerResponse struct {
-	ThreadID string            `json:"thread_id"`
-	Question *string           `json:"question"`
-	Report   *string           `json:"report"`
-	Finished bool              `json:"finished"`
-	State    AgentStatePayload `json:"state"`
-}
-
-type AgentStatePayload struct {
-	Role             string      `json:"role"`
-	Level            string      `json:"level"`
-	Style            string      `json:"style"`
-	CurrentRound     int         `json:"current_round"`
-	MaxRounds        int         `json:"max_rounds"`
-	CurrentQuestion  *string     `json:"current_question"`
-	CandidateAnswer  *string     `json:"candidate_answer"`
-	EvaluationScore  *float64    `json:"evaluation_score"`
-	EvaluationDetail *string     `json:"evaluation_detail"`
-	FollowupCount    int         `json:"followup_count"`
-	InterviewHistory interface{} `json:"interview_history"`
-	InterviewStage   string      `json:"interview_stage"`
-	FinalReport      *string     `json:"final_report"`
+	EvaluationScore  *float64 `json:"evaluation_score"`
+	EvaluationDetail *string  `json:"evaluation_detail"`
+	Finished         bool     `json:"finished"`
+	NextQuestion     *string  `json:"next_question"`
+	IsFollowup       bool     `json:"is_followup"`
+	CurrentRound     int      `json:"current_round"`
+	FollowupCount    int      `json:"followup_count"`
+	Report           *string  `json:"report"`
 }
 
 func (c *AgentClient) Start(req AgentStartRequest) (*AgentStartResponse, error) {

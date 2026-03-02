@@ -29,19 +29,28 @@ func Load() (*Config, error) {
 		DBHost:       getEnv("DB_HOST", "localhost"),
 		DBPort:       getEnv("DB_PORT", "5432"),
 		DBUser:       mustGetEnv("DB_USER"),
-		DBPassword:   mustGetEnv("DB_PASSWORD"),
+		DBPassword:   getEnv("DB_PASSWORD", ""),
 		DBName:       mustGetEnv("DB_NAME"),
 		DBSSL:        getEnv("DB_SSLMODE", "disable"),
-		AgentBaseURL: getEnv("AGENT_BASE_URL", "http://agent:8000"),
+		AgentBaseURL: getEnv("AGENT_BASE_URL", "http://localhost:8000"),
 	}
 	return cfg, nil
 }
 
 func (c *Config) DSN() string {
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSL,
-	)
+	if c.DBPassword != "" {
+		// Include password in DSN only if it's set to avoid issues with some PostgreSQL setups that don't require a password
+		return fmt.Sprintf(
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+			c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSL,
+		)
+	} else {
+		// If password is empty, omit it from the DSN to avoid issues with some PostgreSQL setups
+		return fmt.Sprintf(
+			"host=%s port=%s user=%s dbname=%s sslmode=%s",
+			c.DBHost, c.DBPort, c.DBUser, c.DBName, c.DBSSL,
+		)
+	}
 }
 
 func getEnv(key, fallback string) string {

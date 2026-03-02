@@ -22,25 +22,25 @@ services:
       timeout: 5s
       retries: 10
 
-  # ──────────────────────────────────────────
-  # Python AI Agent (FastAPI / LangGraph)
-  # ──────────────────────────────────────────
-  agent:
-    build:
-      context: ../interview-levelup-agent
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      LLM_MODEL: ${LLM_MODEL}
-      LLM_API_KEY: ${LLM_API_KEY}
-      LLM_BASE_URL: ${LLM_BASE_URL}
-    ports:
-      - "8000:8000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8000/docs || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+  # # ──────────────────────────────────────────
+  # # Python AI Agent (FastAPI / LangGraph)
+  # # ──────────────────────────────────────────
+  # agent:
+  #   build:
+  #     context: ../interview-levelup-agent
+  #     dockerfile: Dockerfile
+  #   restart: unless-stopped
+  #   environment:
+  #     LLM_MODEL: ${LLM_MODEL}
+  #     LLM_API_KEY: ${LLM_API_KEY}
+  #     LLM_BASE_URL: ${LLM_BASE_URL}
+  #   ports:
+  #     - "8000:8000"
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8000/docs || exit 1"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
 
   # ──────────────────────────────────────────
   # Go / Gin Backend
