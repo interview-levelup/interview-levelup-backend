@@ -16,6 +16,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("config: %v", err)
 	}
+	cfg.LogSummary()
 
 	db, err := database.Connect(cfg.DSN())
 	if err != nil {
