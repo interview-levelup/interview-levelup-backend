@@ -20,7 +20,6 @@ func New(cfg *config.Config, authSvc *services.AuthService, authH *handlers.Auth
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type", "X-Accel-Buffering"},
-		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
 
