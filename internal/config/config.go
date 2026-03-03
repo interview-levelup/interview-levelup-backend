@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -22,6 +23,8 @@ type Config struct {
 
 	WhisperAPIKey  string
 	WhisperBaseURL string // optional: override for self-hosted Whisper
+
+	CORSOrigins []string // allowed origins for CORS; defaults to localhost dev ports
 }
 
 func Load() (*Config, error) {
@@ -39,6 +42,20 @@ func Load() (*Config, error) {
 
 		WhisperAPIKey:  getEnv("WHISPER_API_KEY", getEnv("LLM_API_KEY", "")),
 		WhisperBaseURL: getEnv("WHISPER_BASE_URL", ""),
+	}
+
+	// CORS_ORIGINS — comma-separated list of allowed origins.
+	// e.g. "https://example.up.railway.app,http://localhost:5173"
+	// Falls back to localhost dev ports when unset.
+	if raw := getEnv("CORS_ORIGINS", ""); raw != "" {
+		for _, o := range strings.Split(raw, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				cfg.CORSOrigins = append(cfg.CORSOrigins, o)
+			}
+		}
+	}
+	if len(cfg.CORSOrigins) == 0 {
+		cfg.CORSOrigins = []string{"http://localhost:5173", "http://localhost:3000"}
 	}
 	return cfg, nil
 }

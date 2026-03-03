@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/fan/interview-levelup-backend/internal/config"
 	"github.com/fan/interview-levelup-backend/internal/handlers"
 	"github.com/fan/interview-levelup-backend/internal/middleware"
 	"github.com/fan/interview-levelup-backend/internal/services"
@@ -11,11 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handlers.InterviewHandler) *gin.Engine {
+func New(cfg *config.Config, authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handlers.InterviewHandler) *gin.Engine {
 	r := gin.Default()
 
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
+		AllowOrigins:     cfg.CORSOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length", "Content-Type", "X-Accel-Buffering"},

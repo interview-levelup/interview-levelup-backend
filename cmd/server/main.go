@@ -35,7 +35,7 @@ func main() {
 	authH := handlers.NewAuthHandler(authSvc)
 	ivH := handlers.NewInterviewHandler(ivSvc)
 
-	r := router.New(authSvc, authH, ivH)
+	r := router.New(cfg, authSvc, authH, ivH)
 
 	addr := ":" + cfg.Port
 	log.Printf("server listening on %s", addr)
