@@ -18,7 +18,7 @@ func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handle
 		AllowOrigins:     []string{"http://localhost:5173", "http://localhost:3000"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
-		ExposeHeaders:    []string{"Content-Length"},
+		ExposeHeaders:    []string{"Content-Length", "Content-Type", "X-Accel-Buffering"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -46,10 +46,18 @@ func New(authSvc *services.AuthService, authH *handlers.AuthHandler, ivH *handle
 		interviews.Use(middleware.JWT(authSvc))
 		{
 			interviews.POST("", ivH.Start)
+			interviews.POST("/stream", ivH.StartStream)
 			interviews.GET("", ivH.List)
 			interviews.GET("/:id", ivH.Get)
 			interviews.POST("/:id/answer", ivH.SubmitAnswer)
+			interviews.POST("/:id/answer/stream", ivH.SubmitAnswerStream)
 			interviews.POST("/:id/end", ivH.End)
+		}
+
+		transcribe := v1.Group("/transcribe")
+		transcribe.Use(middleware.JWT(authSvc))
+		{
+			transcribe.POST("", ivH.Transcribe)
 		}
 	}
 

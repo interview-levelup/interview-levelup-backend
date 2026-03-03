@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -52,12 +53,13 @@ func sanitizeEval(score *float64, detail *string) (*float64, *string) {
 }
 
 type InterviewService struct {
-	repo  *repository.InterviewRepository
-	agent *AgentClient
+	repo    *repository.InterviewRepository
+	agent   *AgentClient
+	whisper *WhisperClient
 }
 
-func NewInterviewService(repo *repository.InterviewRepository, agent *AgentClient) *InterviewService {
-	return &InterviewService{repo: repo, agent: agent}
+func NewInterviewService(repo *repository.InterviewRepository, agent *AgentClient, whisper *WhisperClient) *InterviewService {
+	return &InterviewService{repo: repo, agent: agent, whisper: whisper}
 }
 
 func (s *InterviewService) StartInterview(userID, role, level, style string, maxRounds int) (*models.Interview, *models.InterviewRound, error) {
@@ -100,32 +102,36 @@ func (s *InterviewService) StartInterview(userID, role, level, style string, max
 	return iv, rnd, nil
 }
 
-func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Interview, *models.InterviewRound, *models.InterviewRound, error) {
+// SubmitStreamCtx holds prepared state shared between PrepareAnswerStream and FinalizeAnswerStream.
+type SubmitStreamCtx struct {
+	iv       *models.Interview
+	latest   models.InterviewRound
+	agentReq AgentChatRequest
+	answer   string
+}
+
+func (s *InterviewService) prepareSubmit(interviewID, answer string) (*SubmitStreamCtx, error) {
 	iv, err := s.repo.FindByID(interviewID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if isTerminalStatus(iv.Status) {
-		return nil, nil, nil, ErrAlreadyFinished
+		return nil, ErrAlreadyFinished
 	}
 
-	// Fetch all rounds so we can reconstruct state for the stateless agent.
 	allRounds, err := s.repo.FindRoundsByInterviewID(interviewID)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, err
 	}
 	if len(allRounds) == 0 {
-		return nil, nil, nil, fmt.Errorf("no rounds found for interview %s", interviewID)
+		return nil, fmt.Errorf("no rounds found for interview %s", interviewID)
 	}
 
-	// Latest round = the current unanswered question.
 	latest := allRounds[len(allRounds)-1]
 	if latest.Answer != nil {
-		return nil, nil, nil, fmt.Errorf("latest round %s already has an answer — interview state may be inconsistent", latest.ID)
+		return nil, fmt.Errorf("latest round %s already has an answer — interview state may be inconsistent", latest.ID)
 	}
 
-	// Build history from all *previously answered* rounds (everything except latest).
-	// Use an empty slice (not nil) so it serializes as [] not null for the agent.
 	history := make([]AgentHistoryEntry, 0, len(allRounds)-1)
 	for _, r := range allRounds[:len(allRounds)-1] {
 		entry := AgentHistoryEntry{
@@ -142,9 +148,6 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		history = append(history, entry)
 	}
 
-	// followup_count = how many followup rounds share the same round_num as the
-	// current question (including the current one, since that count was already
-	// incremented when the agent generated this question).
 	followupCount := 0
 	for _, r := range allRounds {
 		if r.IsFollowup && r.RoundNum == latest.RoundNum {
@@ -152,53 +155,54 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		}
 	}
 
-	agentResp, err := s.agent.Chat(AgentChatRequest{
-		Role:             iv.Role,
-		Level:            iv.Level,
-		Style:            iv.Style,
-		MaxRounds:        iv.MaxRounds,
-		CurrentRound:     latest.RoundNum,
-		FollowupCount:    followupCount,
-		CurrentQuestion:  &latest.Question,
-		Answer:           &answer,
-		InterviewHistory: history,
-	})
-	if err != nil {
-		return nil, nil, nil, err
-	}
+	return &SubmitStreamCtx{
+		iv:     iv,
+		latest: latest,
+		answer: answer,
+		agentReq: AgentChatRequest{
+			Role:             iv.Role,
+			Level:            iv.Level,
+			Style:            iv.Style,
+			MaxRounds:        iv.MaxRounds,
+			CurrentRound:     latest.RoundNum,
+			FollowupCount:    followupCount,
+			CurrentQuestion:  &latest.Question,
+			Answer:           &answer,
+			InterviewHistory: history,
+		},
+	}, nil
+}
 
+func (s *InterviewService) finalizeSubmit(ctx *SubmitStreamCtx, agentResp *AgentChatResponse) (*models.Interview, *models.InterviewRound, *models.InterviewRound, error) {
 	now := time.Now().UTC()
-
-	// Normalise eval fields — backend is the single source of truth, not the frontend.
 	cleanScore, cleanDetail := sanitizeEval(agentResp.EvaluationScore, agentResp.EvaluationDetail)
 
-	// Persist evaluation result onto the round that was just answered.
-	latest.Answer = &answer
-	latest.Score = cleanScore
-	latest.EvaluationDetail = cleanDetail
-	latest.AnsweredAt = &now
-	if err := s.repo.UpdateRound(&latest); err != nil {
+	ctx.latest.Answer = &ctx.answer
+	ctx.latest.Score = cleanScore
+	ctx.latest.EvaluationDetail = cleanDetail
+	ctx.latest.AnsweredAt = &now
+	if err := s.repo.UpdateRound(&ctx.latest); err != nil {
 		return nil, nil, nil, err
 	}
 
 	var nextRound *models.InterviewRound
 	if agentResp.Finished {
 		if agentResp.UserEnded {
-			iv.Status = "user_ended"
+			ctx.iv.Status = "user_ended"
 		} else if agentResp.Aborted {
-			iv.Status = "aborted"
+			ctx.iv.Status = "aborted"
 		} else {
-			iv.Status = "finished"
+			ctx.iv.Status = "finished"
 		}
-		iv.FinalReport = agentResp.Report
-		iv.UpdatedAt = now
-		if err := s.repo.Update(iv); err != nil {
+		ctx.iv.FinalReport = agentResp.Report
+		ctx.iv.UpdatedAt = now
+		if err := s.repo.Update(ctx.iv); err != nil {
 			return nil, nil, nil, err
 		}
 	} else if agentResp.Question != nil {
 		nextRound = &models.InterviewRound{
 			ID:          uuid.NewString(),
-			InterviewID: iv.ID,
+			InterviewID: ctx.iv.ID,
 			RoundNum:    agentResp.CurrentRound,
 			Question:    *agentResp.Question,
 			IsFollowup:  agentResp.IsFollowup,
@@ -208,12 +212,45 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 		if err := s.repo.CreateRound(nextRound); err != nil {
 			return nil, nil, nil, err
 		}
-		iv.UpdatedAt = now
-		if err := s.repo.Update(iv); err != nil {
+		ctx.iv.UpdatedAt = now
+		if err := s.repo.Update(ctx.iv); err != nil {
 			return nil, nil, nil, err
 		}
 	}
-	return iv, &latest, nextRound, nil
+	return ctx.iv, &ctx.latest, nextRound, nil
+}
+
+func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Interview, *models.InterviewRound, *models.InterviewRound, error) {
+	ctx, err := s.prepareSubmit(interviewID, answer)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	agentResp, err := s.agent.Chat(ctx.agentReq)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return s.finalizeSubmit(ctx, agentResp)
+}
+
+// PrepareAnswerStream prepares the agent request and opens a streaming SSE connection
+// to the agent. The caller must close the returned http.Response.Body when done.
+func (s *InterviewService) PrepareAnswerStream(interviewID, answer string) (*SubmitStreamCtx, *http.Response, error) {
+	ctx, err := s.prepareSubmit(interviewID, answer)
+	if err != nil {
+		return nil, nil, err
+	}
+	resp, err := s.agent.ChatStream(ctx.agentReq)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ctx, resp, nil
+}
+
+// FinalizeAnswerStream persists the agent response to the DB (same finalisation as SubmitAnswer).
+func (s *InterviewService) FinalizeAnswerStream(ctx *SubmitStreamCtx, agentResp *AgentChatResponse) (*models.Interview, *models.InterviewRound, *models.InterviewRound, error) {
+	return s.finalizeSubmit(ctx, agentResp)
 }
 
 // EndInterview is a safety-net for edge cases (e.g. no pending round to submit through).
@@ -251,4 +288,65 @@ func (s *InterviewService) GetInterview(interviewID, userID string) (*models.Int
 
 func (s *InterviewService) ListInterviews(userID string) ([]models.Interview, error) {
 	return s.repo.FindByUserID(userID)
+}
+
+// StartStreamCtx holds prepared state for the streaming start flow.
+type StartStreamCtx struct {
+	iv *models.Interview
+}
+
+// Interview returns the interview created for this stream.
+func (c *StartStreamCtx) Interview() *models.Interview { return c.iv }
+
+// PrepareStartStream creates the interview DB row immediately and opens an agent
+// stream for the first question. The caller must close the returned http.Response.Body.
+func (s *InterviewService) PrepareStartStream(userID, role, level, style string, maxRounds int) (*StartStreamCtx, *http.Response, error) {
+	now := time.Now().UTC()
+	iv := &models.Interview{
+		ID:        uuid.NewString(),
+		UserID:    userID,
+		Role:      role,
+		Level:     level,
+		Style:     style,
+		MaxRounds: maxRounds,
+		Status:    "ongoing",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.repo.Create(iv); err != nil {
+		return nil, nil, err
+	}
+	agentReq := AgentChatRequest{
+		Role:             role,
+		Level:            level,
+		Style:            style,
+		MaxRounds:        maxRounds,
+		InterviewHistory: make([]AgentHistoryEntry, 0),
+	}
+	resp, err := s.agent.ChatStream(agentReq)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &StartStreamCtx{iv: iv}, resp, nil
+}
+
+// FinalizeStartStream saves the first question round to DB.
+func (s *InterviewService) FinalizeStartStream(ctx *StartStreamCtx, question string) (*models.InterviewRound, error) {
+	rnd := &models.InterviewRound{
+		ID:          uuid.NewString(),
+		InterviewID: ctx.iv.ID,
+		RoundNum:    0,
+		Question:    question,
+		IsFollowup:  false,
+		CreatedAt:   time.Now().UTC(),
+	}
+	if err := s.repo.CreateRound(rnd); err != nil {
+		return nil, err
+	}
+	return rnd, nil
+}
+
+// Transcribe sends audio to the Whisper API and returns the transcript.
+func (s *InterviewService) Transcribe(audioData []byte, filename, contentType string) (string, error) {
+	return s.whisper.Transcribe(audioData, filename, contentType)
 }

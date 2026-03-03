@@ -19,6 +19,9 @@ type Config struct {
 	DBSSL      string
 
 	AgentBaseURL string
+
+	WhisperAPIKey  string
+	WhisperBaseURL string // optional: override for self-hosted Whisper
 }
 
 func Load() (*Config, error) {
@@ -33,6 +36,9 @@ func Load() (*Config, error) {
 		DBName:       mustGetEnv("DB_NAME"),
 		DBSSL:        getEnv("DB_SSLMODE", "disable"),
 		AgentBaseURL: getEnv("AGENT_BASE_URL", "http://localhost:8000"),
+
+		WhisperAPIKey:  getEnv("WHISPER_API_KEY", getEnv("LLM_API_KEY", "")),
+		WhisperBaseURL: getEnv("WHISPER_BASE_URL", ""),
 	}
 	return cfg, nil
 }

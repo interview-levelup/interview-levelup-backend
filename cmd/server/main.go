@@ -29,7 +29,8 @@ func main() {
 
 	authSvc := services.NewAuthService(userRepo, cfg.JWTSecret)
 	agentClient := services.NewAgentClient(cfg.AgentBaseURL)
-	ivSvc := services.NewInterviewService(ivRepo, agentClient)
+	whisperClient := services.NewWhisperClient(cfg.WhisperAPIKey, cfg.WhisperBaseURL)
+	ivSvc := services.NewInterviewService(ivRepo, agentClient, whisperClient)
 
 	authH := handlers.NewAuthHandler(authSvc)
 	ivH := handlers.NewInterviewHandler(ivSvc)
