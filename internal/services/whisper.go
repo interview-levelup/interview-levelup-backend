@@ -32,6 +32,9 @@ func NewWhisperClient(apiKey, baseURL string) *WhisperClient {
 
 // Transcribe sends audioData to the Whisper API and returns the transcript text.
 func (w *WhisperClient) Transcribe(audioData []byte, filename, contentType string) (string, error) {
+	if w.apiKey == "" {
+		return "", fmt.Errorf("Whisper API key not configured (set WHISPER_API_KEY or LLM_API_KEY)")
+	}
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
 
