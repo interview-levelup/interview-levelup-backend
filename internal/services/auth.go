@@ -4,6 +4,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/fan/interview-levelup-backend/internal/apierror"
 	"github.com/fan/interview-levelup-backend/internal/models"
 	"github.com/fan/interview-levelup-backend/internal/repository"
 	"github.com/golang-jwt/jwt/v5"
@@ -23,7 +24,7 @@ func NewAuthService(repo *repository.UserRepository, secret string) *AuthService
 func (s *AuthService) Register(email, password string) (*models.User, error) {
 	existing, _ := s.userRepo.FindByEmail(email)
 	if existing != nil {
-		return nil, errors.New("email already registered")
+		return nil, apierror.Conflict("email already registered")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
@@ -44,10 +45,10 @@ func (s *AuthService) Register(email, password string) (*models.User, error) {
 func (s *AuthService) Login(email, password string) (string, *models.User, error) {
 	u, err := s.userRepo.FindByEmail(email)
 	if err != nil {
-		return "", nil, errors.New("invalid credentials")
+		return "", nil, apierror.Unauthorized("invalid credentials")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)); err != nil {
-		return "", nil, errors.New("invalid credentials")
+		return "", nil, apierror.Unauthorized("invalid credentials")
 	}
 	token, err := s.generateToken(u.ID)
 	if err != nil {
@@ -62,7 +63,7 @@ func (s *AuthService) ChangePassword(userID, currentPassword, newPassword string
 		return errors.New("user not found")
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(currentPassword)); err != nil {
-		return errors.New("current password is incorrect")
+		return apierror.BadRequest("current password is incorrect")
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {

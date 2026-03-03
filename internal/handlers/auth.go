@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/fan/interview-levelup-backend/internal/apierror"
 	"github.com/fan/interview-levelup-backend/internal/services"
 	"github.com/gin-gonic/gin"
 )
@@ -38,7 +39,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	}
 	user, err := h.authSvc.Register(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"user": user})
@@ -52,7 +53,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 	token, user, err := h.authSvc.Login(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"token": token, "user": user})
@@ -66,7 +67,7 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 	if err := h.authSvc.ChangePassword(userID, req.CurrentPassword, req.NewPassword); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "password updated"})

@@ -1,6 +1,9 @@
 package services
 
-import "errors"
+import "github.com/fan/interview-levelup-backend/internal/apierror"
 
-var ErrForbidden = errors.New("forbidden")
-var ErrAlreadyFinished = errors.New("interview already finished")
+// Sentinel errors exposed by the service layer.
+var (
+	ErrForbidden       = apierror.ErrForbidden
+	ErrAlreadyFinished = apierror.ErrAlreadyFinished
+)

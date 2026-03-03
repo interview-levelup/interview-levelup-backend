@@ -3,13 +3,12 @@ package handlers
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
+	"github.com/fan/interview-levelup-backend/internal/apierror"
 	"github.com/fan/interview-levelup-backend/internal/middleware"
 	"github.com/fan/interview-levelup-backend/internal/services"
 	"github.com/gin-gonic/gin"
@@ -52,7 +51,7 @@ func (h *InterviewHandler) Start(c *gin.Context) {
 	}
 	iv, round, err := h.ivSvc.StartInterview(userID, req.Role, req.Level, req.Style, req.MaxRounds)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusCreated, gin.H{"interview": iv, "current_question": round})
@@ -62,7 +61,7 @@ func (h *InterviewHandler) End(c *gin.Context) {
 	interviewID := c.Param("id")
 	iv, err := h.ivSvc.EndInterview(interviewID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"interview": iv})
@@ -77,12 +76,7 @@ func (h *InterviewHandler) SubmitAnswer(c *gin.Context) {
 	}
 	iv, answeredRound, nextRound, err := h.ivSvc.SubmitAnswer(interviewID, req.Answer)
 	if err != nil {
-		log.Printf("[SubmitAnswer] interview=%s error=%v", interviewID, err)
-		if errors.Is(err, services.ErrAlreadyFinished) {
-			c.JSON(http.StatusConflict, gin.H{"error": "interview already finished"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	resp := gin.H{"interview": iv, "answered_round": answeredRound}
@@ -100,7 +94,7 @@ func (h *InterviewHandler) List(c *gin.Context) {
 	userID := c.GetString(middleware.UserIDKey)
 	ivs, err := h.ivSvc.ListInterviews(userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"interviews": ivs})
@@ -111,11 +105,7 @@ func (h *InterviewHandler) Get(c *gin.Context) {
 	interviewID := c.Param("id")
 	iv, rounds, err := h.ivSvc.GetInterview(interviewID, userID)
 	if err != nil {
-		if errors.Is(err, services.ErrForbidden) {
-			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
-			return
-		}
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"interview": iv, "rounds": rounds})
@@ -134,12 +124,7 @@ func (h *InterviewHandler) SubmitAnswerStream(c *gin.Context) {
 
 	ctx, agentHTTPResp, err := h.ivSvc.PrepareAnswerStream(interviewID, req.Answer)
 	if err != nil {
-		log.Printf("[SubmitAnswerStream] prepare interview=%s: %v", interviewID, err)
-		if errors.Is(err, services.ErrAlreadyFinished) {
-			c.JSON(http.StatusConflict, gin.H{"error": "interview already finished"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	defer agentHTTPResp.Body.Close()
@@ -177,8 +162,7 @@ func (h *InterviewHandler) SubmitAnswerStream(c *gin.Context) {
 			}
 			iv, answeredRound, nextRound, err := h.ivSvc.FinalizeAnswerStream(ctx, &agentResp)
 			if err != nil {
-				log.Printf("[SubmitAnswerStream] finalize interview=%s: %v", interviewID, err)
-				sendSSEError(w, err.Error())
+				apierror.RespondSSE(c, err)
 				return
 			}
 			isFinished := iv.Status != "ongoing"
@@ -203,8 +187,7 @@ func (h *InterviewHandler) SubmitAnswerStream(c *gin.Context) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("[SubmitAnswerStream] scanner error interview=%s: %v", interviewID, err)
-		sendSSEError(w, "stream read error: "+err.Error())
+		apierror.RespondSSE(c, err)
 	}
 }
 
@@ -240,7 +223,7 @@ func (h *InterviewHandler) StartStream(c *gin.Context) {
 
 	ctx, agentHTTPResp, err := h.ivSvc.PrepareStartStream(userID, req.Role, req.Level, req.Style, req.MaxRounds)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	defer agentHTTPResp.Body.Close()
@@ -295,8 +278,7 @@ func (h *InterviewHandler) StartStream(c *gin.Context) {
 			}
 			rnd, err := h.ivSvc.FinalizeStartStream(ctx, fullQuestion)
 			if err != nil {
-				log.Printf("[StartStream] finalize: %v", err)
-				sendSSEError(w, err.Error())
+				apierror.RespondSSE(c, err)
 				return
 			}
 			doneJSON, _ := json.Marshal(gin.H{"type": "done", "round": rnd})
@@ -310,8 +292,7 @@ func (h *InterviewHandler) StartStream(c *gin.Context) {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		log.Printf("[StartStream] scanner error: %v", err)
-		sendSSEError(w, "stream read error: "+err.Error())
+		apierror.RespondSSE(c, err)
 	}
 }
 
@@ -334,8 +315,7 @@ func (h *InterviewHandler) Transcribe(c *gin.Context) {
 	}
 	text, err := h.ivSvc.Transcribe(audioData, header.Filename, contentType)
 	if err != nil {
-		log.Printf("[Transcribe] error: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		apierror.Respond(c, err)
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"text": text})
