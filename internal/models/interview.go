@@ -3,16 +3,18 @@ package models
 import "time"
 
 type Interview struct {
-	ID          string    `db:"id"           json:"id"`
-	UserID      string    `db:"user_id"      json:"user_id"`
-	Role        string    `db:"role"         json:"role"`
-	Level       string    `db:"level"        json:"level"`
-	Style       string    `db:"style"        json:"style"`
-	MaxRounds   int       `db:"max_rounds"   json:"max_rounds"`
-	Status      string    `db:"status"       json:"status"`
-	FinalReport *string   `db:"final_report" json:"final_report,omitempty"`
-	CreatedAt   time.Time `db:"created_at"   json:"created_at"`
-	UpdatedAt   time.Time `db:"updated_at"   json:"updated_at"`
+	ID             string    `db:"id"             json:"id"`
+	UserID         string    `db:"user_id"        json:"user_id"`
+	Role           string    `db:"role"           json:"role"`
+	Level          string    `db:"level"          json:"level"`
+	Style          string    `db:"style"          json:"style"`
+	MaxRounds      int       `db:"max_rounds"     json:"max_rounds"`
+	Status         string    `db:"status"         json:"status"`
+	FinalReport    *string   `db:"final_report"   json:"final_report,omitempty"`
+	CreatedAt      time.Time `db:"created_at"     json:"created_at"`
+	UpdatedAt      time.Time `db:"updated_at"     json:"updated_at"`
+	// Computed by list query: answered main rounds (excludes followups and sub interactions)
+	AnsweredRounds int       `db:"answered_rounds" json:"answered_rounds"`
 }
 
 type InterviewRound struct {

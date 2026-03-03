@@ -17,7 +17,7 @@ import (
 // so the DB and API always surface clean typed data.
 // isTerminalStatus returns true when an interview can no longer accept answers.
 func isTerminalStatus(s string) bool {
-	return s == "finished" || s == "aborted" || s == "ended"
+	return s == "finished" || s == "aborted" || s == "user_ended"
 }
 
 func sanitizeEval(score *float64, detail *string) (*float64, *string) {
@@ -183,7 +183,9 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 
 	var nextRound *models.InterviewRound
 	if agentResp.Finished {
-		if agentResp.Aborted {
+		if agentResp.UserEnded {
+			iv.Status = "user_ended"
+		} else if agentResp.Aborted {
 			iv.Status = "aborted"
 		} else {
 			iv.Status = "finished"
@@ -214,6 +216,8 @@ func (s *InterviewService) SubmitAnswer(interviewID, answer string) (*models.Int
 	return iv, &latest, nextRound, nil
 }
 
+// EndInterview is a safety-net for edge cases (e.g. no pending round to submit through).
+// The normal path for user-initiated ending is submitting "我想结束面试" via SubmitAnswer.
 func (s *InterviewService) EndInterview(interviewID string) (*models.Interview, error) {
 	iv, err := s.repo.FindByID(interviewID)
 	if err != nil {
@@ -222,7 +226,7 @@ func (s *InterviewService) EndInterview(interviewID string) (*models.Interview, 
 	if isTerminalStatus(iv.Status) {
 		return iv, nil // idempotent
 	}
-	iv.Status = "ended"
+	iv.Status = "finished"
 	iv.UpdatedAt = time.Now().UTC()
 	if err := s.repo.Update(iv); err != nil {
 		return nil, err

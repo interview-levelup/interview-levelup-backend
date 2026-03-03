@@ -45,8 +45,20 @@ func (r *InterviewRepository) FindByID(id string) (*models.Interview, error) {
 
 func (r *InterviewRepository) FindByUserID(userID string) ([]models.Interview, error) {
 	var ivs []models.Interview
-	err := r.db.Select(&ivs,
-		`SELECT * FROM interviews WHERE user_id = $1 ORDER BY created_at DESC`,
+	err := r.db.Select(&ivs, `
+		SELECT i.*,
+		       COALESCE(rc.answered_rounds, 0) AS answered_rounds
+		FROM interviews i
+		LEFT JOIN (
+		    SELECT interview_id, COUNT(*) AS answered_rounds
+		    FROM interview_rounds
+		    WHERE answer IS NOT NULL
+		      AND is_followup = FALSE
+		      AND is_sub = FALSE
+		    GROUP BY interview_id
+		) rc ON rc.interview_id = i.id
+		WHERE i.user_id = $1
+		ORDER BY i.created_at DESC`,
 		userID,
 	)
 	return ivs, err

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS interviews (
     level        TEXT NOT NULL DEFAULT 'junior',
     style        TEXT NOT NULL DEFAULT 'standard',
     max_rounds   INTEGER NOT NULL DEFAULT 5,
-    status       TEXT NOT NULL DEFAULT 'ongoing',  -- ongoing | finished | aborted | ended
+    status       TEXT NOT NULL DEFAULT 'ongoing',  -- ongoing | finished | aborted | user_ended
     final_report TEXT,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
